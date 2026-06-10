@@ -1,0 +1,11 @@
+websockets==12.0
+pydantic==2.13.4
+pydantic-settings==2.14.1
+structlog==26.1.0
+SQLAlchemy==2.0.50
+asyncpg==0.31.0
+alembic==1.18.4
+pytest==9.0.3
+pytest-asyncio==1.4.0
+mypy==2.1.0
+ruff==0.15.16
