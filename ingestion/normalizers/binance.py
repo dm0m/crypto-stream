@@ -5,7 +5,8 @@ from pydantic import ValidationError
 import structlog
 
 from core.log_events import LogEvent
-from model.trade import Trade
+from domain.enums import Exchange, Side
+from domain.trade import Trade
 from schemas.binance import BinanceTradeRaw
 
 
@@ -30,11 +31,11 @@ class BinanceNormalizer():
         try:
             return Trade(
                 trade_id=str(raw["t"]),
-                exchange="binance",
+                exchange=Exchange.BINANCE,
                 symbol=cls._to_symbol(raw["s"]),
                 price=Decimal(raw["p"]),
                 quantity=Decimal(raw["q"]),
-                side="sell" if raw["m"] else "buy",
+                side=Side.SELL if raw["m"] else Side.BUY,
                 ts_event=datetime.fromtimestamp(raw["T"] / 1000, tz=timezone.utc),
                 ts_ingest=datetime.now(timezone.utc)
             )

@@ -1,6 +1,5 @@
 import asyncio
 import json
-from io import TextIOWrapper
 from typing import cast
 
 import structlog
@@ -8,10 +7,12 @@ import websockets
 
 from core.backoff import backoff
 from core.log_events import LogEvent
-from model.trade import Trade
-from normalizer.binance import BinanceNormalizer
-from model.enums import Exchange
+from domain.trade import Trade
+from ingestion.normalizers.binance import BinanceNormalizer
+from domain.enums import Exchange
 from schemas.binance import BinanceTradeRaw
+
+from storage.repositories import TradeRepository
 
 BINANCE_WS_URL = "wss://stream.binance.com:9443/ws"
 
@@ -21,9 +22,12 @@ class IngestionService:
 
     def __init__(
         self,
+        trade_repository: TradeRepository,
+        *,
         symbols: list[str] | None = None,
         batch_size: int = 1000,
     ) -> None:
+        self._trade_repository: TradeRepository = trade_repository
         self.symbols = symbols or ["btcusdt"]
         self.batch_size = batch_size
         self.queue: asyncio.Queue[Trade] = asyncio.Queue(maxsize=batch_size)
@@ -61,22 +65,15 @@ class IngestionService:
                 self.received += 1
 
     async def _write(self) -> None:
-        # TODO(step 2): replace the jsonl sink with a storage repository bulk-insert.
-        with open("data.jsonl", "a") as f:
-            while True:
-                trade = await self.queue.get()
-                batch: list[Trade] = [trade]
-                while len(batch) < self.batch_size:
-                    try:
-                        batch.append(self.queue.get_nowait())
-                    except asyncio.QueueEmpty:
-                        break
-                await asyncio.to_thread(self._flush, f, batch)
-
-    @staticmethod
-    def _flush(file: TextIOWrapper, trades: list[Trade]) -> None:
-        for trade in trades:
-            file.write(f"{trade.model_dump_json()}\n")
+        while True:
+            trade = await self.queue.get()
+            batch: list[Trade] = [trade]
+            while len(batch) < self.batch_size:
+                try:
+                    batch.append(self.queue.get_nowait())
+                except asyncio.QueueEmpty:
+                    break
+            await self._trade_repository.bulk_insert(batch)
 
     async def _report_metrics(self, interval: int = 5) -> None:
         dropped_prev = 0

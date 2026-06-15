@@ -1,7 +1,7 @@
 
 from typing import Protocol
 
-from model.trade import Trade
+from domain.trade import Trade
 from schemas.binance import BinanceTradeRaw
 
 

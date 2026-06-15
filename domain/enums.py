@@ -10,3 +10,7 @@ class Exchange(StrEnum):
     BINANCE = "binance"
     KRAKEN = "kraken"
     COINBASE = "coinbase"
+    
+class Side(StrEnum):
+    BUY = "buy"
+    SELL = "sell"
