@@ -6,10 +6,14 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from domain.enums import Exchange, Side
 
+
 class Base(DeclarativeBase):
-    pass
+    """Declarative base for all ORM models."""
+
 
 class TradeTable(Base):
+    """Row mapping for the ``trades`` table: one raw tick per row."""
+
     __tablename__ = "trades"
     __table_args__ = (UniqueConstraint("exchange", "trade_id"),)
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -21,4 +25,3 @@ class TradeTable(Base):
     trade_id: Mapped[str] = mapped_column(String(20), index=True)
     side: Mapped[Side] = mapped_column(Enum(Side))
     symbol: Mapped[str] = mapped_column(String(20), index=True)
-    

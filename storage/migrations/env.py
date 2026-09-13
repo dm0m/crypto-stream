@@ -1,15 +1,13 @@
 import asyncio
 from logging.config import fileConfig
 
+from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from alembic import context
-
 from core.config import get_settings
 from storage.models import Base
-
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -59,6 +57,11 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
+    """Run the pending migrations on an already-open sync connection.
+
+    Invoked through ``AsyncConnection.run_sync`` because Alembic's migration
+    context is synchronous even when the engine is async.
+    """
     context.configure(connection=connection, target_metadata=target_metadata)
 
     with context.begin_transaction():
@@ -66,9 +69,12 @@ def do_run_migrations(connection: Connection) -> None:
 
 
 async def run_async_migrations() -> None:
-    """In this scenario we need to create an Engine
-    and associate a connection with the context.
+    """Create an async engine from the ini config and run migrations over it.
 
+    Uses ``NullPool`` since a migration run needs exactly one connection and
+    the engine is disposed as soon as it finishes. The URL was injected into
+    the config from ``Settings`` at module import, so ``alembic.ini`` never
+    has to hold credentials.
     """
 
     connectable = async_engine_from_config(
@@ -84,7 +90,7 @@ async def run_async_migrations() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode."""
+    """Run migrations in 'online' mode, against a live database connection."""
 
     asyncio.run(run_async_migrations())
 

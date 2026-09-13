@@ -4,11 +4,12 @@ from pathlib import Path
 from typing import Any
 
 import structlog
+from structlog.contextvars import merge_contextvars
 
 
 def configure_logging(
     log_file: str = "logs/app.log",
-    level: int = logging.DEBUG,
+    level: int = logging.INFO,
     backup_count: int = 30,
 ) -> None:
     """Route structlog through stdlib logging to a daily-rotated JSON file."""
@@ -29,6 +30,7 @@ def configure_logging(
 
     structlog.configure(
         processors=[
+            merge_contextvars,
             *shared_processors,
             # Hand off to stdlib logging instead of rendering here.
             structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
@@ -43,6 +45,7 @@ def configure_logging(
         foreign_pre_chain=shared_processors,
         processors=[
             structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            structlog.processors.format_exc_info,
             structlog.processors.JSONRenderer(),
         ],
     )
