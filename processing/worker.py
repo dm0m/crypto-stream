@@ -1,4 +1,5 @@
 import asyncio
+from datetime import UTC, datetime
 from functools import partial
 from typing import Any, cast
 
@@ -10,8 +11,10 @@ from redis.typing import EncodableT, FieldT
 
 from core.backoff import race_wait_task, retry_call
 from core.log_events import LogEvent
+from domain.candle import Candle
 from domain.trade import Trade
-from storage.repositories import TradeRepository
+from processing.aggregator import CandleAggregator
+from storage.repositories import CandleRepository, TradeRepository
 
 # One stream entry as redis-py returns it with decode_responses=True:
 # (entry_id, {"field": "value", ...}). Trades live in the "data" field as JSON.
@@ -39,14 +42,25 @@ class TradeWorker:
         redis_block: int = 1000,
         trade_repository: TradeRepository,
         shutdown_event: asyncio.Event,
+        aggregator: CandleAggregator | None = None,
+        candle_repository: CandleRepository | None = None,
     ) -> None:
-        """Configure a worker; nothing touches Redis or Postgres until ``run``."""
+        """Configure a worker; nothing touches Redis or Postgres until ``run``.
+
+        Raises:
+            ValueError: Exactly one of ``aggregator`` and
+                ``candle_repository`` was given.
+        """
+        if (aggregator is None) != (candle_repository is None):
+            raise ValueError("aggregator and candle_repository must be given together")
         self.CONSUMER = consumer
         self.RECOVERY_CONSUMER = recovery_consumer
         self.REDIS_COUNT = redis_count
         self.REDIS_BLOCK = redis_block
         self._redis_client: Redis = redis_client
         self._trade_repository: TradeRepository = trade_repository
+        self._aggregator = aggregator
+        self._candle_repository = candle_repository
         self.logger: structlog.BoundLogger = structlog.get_logger().bind(
             service="processing", group=self.GROUP, consumer=self.CONSUMER
         )
@@ -79,12 +93,29 @@ class TradeWorker:
         )
 
     async def _flush(self, trades: list[Trade], ids: list[str]) -> None:
-        """Bulk-insert ``trades`` and then acknowledge ``ids``, in that order."""
+        """Bulk-insert ``trades``, aggregate them, then acknowledge ``ids``."""
         await retry_call(
             lambda: self._trade_repository.bulk_insert(trades),
             event=LogEvent.DB_RECONNECTING,
         )
+        if self._aggregator is not None:
+            closed = [
+                candle
+                for trade in trades
+                if (candle := self._aggregator.add(trade)) is not None
+            ]
+            await self._write_candles(closed)
         await self._ack(*ids)
+
+    async def _write_candles(self, candles: list[Candle]) -> None:
+        """Upsert ``candles`` with connection-failure retries; no-op when empty."""
+        if not candles or self._candle_repository is None:
+            return
+        repository = self._candle_repository
+        await retry_call(
+            lambda: repository.upsert(candles),
+            event=LogEvent.DB_RECONNECTING,
+        )
 
     async def process_batch(self, resp: StreamResp) -> None:
         """Parse one XREADGROUP reply, persist its trades, and ack them.
@@ -110,18 +141,30 @@ class TradeWorker:
         """Start the worker and block until shutdown is requested."""
         self.logger.info(LogEvent.PROCESSING_STARTED, stream=self.STREAM)
         await self.ensure_group()
-        recovery_task = asyncio.create_task(self.recover_failed_msgs())
-        log_dlq_task = asyncio.create_task(self.log_dlq_count())
+        background = [
+            asyncio.create_task(self.recover_failed_msgs()),
+            asyncio.create_task(self.log_dlq_count()),
+        ]
+        if self._aggregator is not None:
+            background.append(asyncio.create_task(self.flush_candles()))
         try:
             await self.consume()
         except asyncio.CancelledError:
             pass
         self.logger.info(LogEvent.SHUTDOWN_INITIATED)
-        recovery_task.cancel()
-        log_dlq_task.cancel()
-        await asyncio.gather(recovery_task, return_exceptions=True)
-        await asyncio.gather(log_dlq_task, return_exceptions=True)
+        for task in background:
+            task.cancel()
+        await asyncio.gather(*background, return_exceptions=True)
         self.logger.info(LogEvent.SHUTDOWN_COMPLETE)
+
+    async def flush_candles(self, delay: float = 1.0) -> None:
+        """Close expired candle buckets on a timer and write them."""
+        if self._aggregator is None:
+            return
+        while True:
+            await asyncio.sleep(delay)
+            closed = self._aggregator.flush_expired(datetime.now(UTC))
+            await self._write_candles(closed)
 
     async def log_dlq_count(self, delay: int = 30) -> None:
         while True:

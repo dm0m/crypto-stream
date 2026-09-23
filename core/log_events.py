@@ -20,3 +20,5 @@ class LogEvent(StrEnum):
     SHUTDOWN_COMPLETE = "shutdown.complete"
     DLQ_NOT_EMPTY = "dlq.not_empty"
     DB_RECONNECTING = "psql.reconnecting"
+    AGGREGATOR_CANDLE_CLOSED = "aggregator.candle_closed"
+    AGGREGATOR_LATE_TRADE = "aggregator.late_trade"

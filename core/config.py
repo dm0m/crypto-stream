@@ -2,7 +2,7 @@
 
 from functools import lru_cache
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     redis_password: SecretStr
     trade_worker_consumer: str
     trade_recovery_consumer: str
+    candle_interval: str = "1m"
+    candle_grace_seconds: float = Field(default=2.0, ge=0)
 
     @property
     def database_url(self) -> str:

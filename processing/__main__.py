@@ -3,6 +3,7 @@
 import asyncio
 import os
 import signal
+from datetime import timedelta
 
 import structlog
 
@@ -10,9 +11,11 @@ from core.config import get_settings
 from core.log_events import LogEvent
 from core.logging import configure_logging
 from core.redis_client import check_redis_con, redis_client
+from domain.enums import Interval
+from processing.aggregator import CandleAggregator
 from processing.worker import TradeWorker
 from storage.engine import check_db_conn, engine, session_factory
-from storage.repositories import TradeRepository
+from storage.repositories import CandleRepository, TradeRepository
 
 logger: structlog.BoundLogger = structlog.get_logger().bind(service="processing")
 
@@ -33,6 +36,11 @@ async def main() -> None:
         redis_client=redis_client,
         trade_repository=TradeRepository(session_factory),
         shutdown_event=shutdown_event,
+        aggregator=CandleAggregator(
+            Interval(settings.candle_interval),
+            timedelta(seconds=settings.candle_grace_seconds),
+        ),
+        candle_repository=CandleRepository(session_factory),
     )
     await worker.run()
     await redis_client.aclose(True)
