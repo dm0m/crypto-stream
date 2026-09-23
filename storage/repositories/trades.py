@@ -1,3 +1,5 @@
+"""Data access for the ``trades`` table."""
+
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -19,7 +21,7 @@ class TradeRepository:
     async def bulk_insert(self, trades: list[Trade]) -> None:
         """Write a batch of trades in one transaction, skipping conflicts."""
         stmt = pg_insert(TradeTable).on_conflict_do_nothing(
-            index_elements=["exchange", "trade_id"]
+            index_elements=["ts_event", "exchange", "trade_id"]
         )
         async with self._session_factory.begin() as session:
             await session.execute(stmt, [t.model_dump() for t in trades])
