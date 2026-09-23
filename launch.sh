@@ -15,9 +15,11 @@ echo "[launch] ensuring docker compose services are up..."
 docker compose up -d --wait
 
 # Bring the schema to head before any service touches Postgres. A no-op on an
-# already-migrated volume; on a fresh one it creates the trades table the
-# worker needs. set -e aborts the launch if it fails, so nothing starts
-# against a half-migrated database.
+# already-migrated volume; on a fresh one it creates the trades and candles
+# hypertables, the continuous aggregates and the lifecycle policies the
+# worker relies on. set -e aborts the launch if it fails, so nothing starts
+# against a half-migrated database. A pgdata volume initialised by a plain
+# postgres image must be recreated (docker compose down -v) before this runs.
 echo "[launch] applying database migrations..."
 $PYTHON -m alembic upgrade head
 

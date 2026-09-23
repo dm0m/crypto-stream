@@ -3,6 +3,8 @@ from collections.abc import AsyncGenerator, Generator
 
 import pytest
 import pytest_asyncio
+from alembic import command
+from alembic.config import Config
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -15,7 +17,7 @@ from testcontainers.community.redis import RedisContainer
 
 from core.logging import configure_logging
 from storage.models import Base
-from storage.repositories import TradeRepository
+from storage.repositories import CandleRepository, TradeRepository
 
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
@@ -26,7 +28,9 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
 
 @pytest.fixture(scope="session")
 def postgres_container() -> Generator[PostgresContainer, None, None]:
-    with PostgresContainer("postgres:17", driver="asyncpg") as container:
+    with PostgresContainer(
+        "timescale/timescaledb:latest-pg17", driver="asyncpg"
+    ) as container:
         yield container
 
 
@@ -36,16 +40,22 @@ def redis_container() -> Generator[RedisContainer, None, None]:
         yield container
 
 
+@pytest.fixture(scope="session")
+def migrated_database_url(postgres_container: PostgresContainer) -> str:
+    """Bring the container to Alembic ``head`` and return its URL."""
+    url = postgres_container.get_connection_url()
+    config = Config("alembic.ini")
+    config.attributes["sqlalchemy_url"] = url
+    command.upgrade(config, "head")
+    return url
+
+
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def integration_engine(
-    postgres_container: PostgresContainer,
+    migrated_database_url: str,
 ) -> AsyncGenerator[AsyncEngine, None]:
-    """Real asyncpg engine against the ephemeral container, with the schema
-    created from the current models rather than by replaying migrations.
-    """
-    engine = create_async_engine(postgres_container.get_connection_url())
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    """Real asyncpg engine against the migrated container database."""
+    engine = create_async_engine(migrated_database_url)
     yield engine
     await engine.dispose()
 
@@ -62,6 +72,13 @@ def integration_trade_repository(
     integration_session_factory: async_sessionmaker[AsyncSession],
 ) -> TradeRepository:
     return TradeRepository(integration_session_factory)
+
+
+@pytest.fixture(scope="session")
+def integration_candle_repository(
+    integration_session_factory: async_sessionmaker[AsyncSession],
+) -> CandleRepository:
+    return CandleRepository(integration_session_factory)
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
@@ -89,9 +106,8 @@ async def _clean_state(
     """Function-scoped: truncate Postgres + flush Redis before every integration
     test, so tests stay isolated without paying to restart containers each time."""
     async with integration_engine.begin() as conn:
-        await conn.run_sync(
-            lambda sync_conn: sync_conn.execute(Base.metadata.tables["trades"].delete())
-        )
+        for table in ("trades", "candles"):
+            await conn.execute(Base.metadata.tables[table].delete())
     await integration_redis_client.flushdb()
     yield
 
