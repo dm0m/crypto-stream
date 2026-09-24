@@ -90,7 +90,7 @@ class IngestionService:
                 except asyncio.CancelledError:
                     pass
 
-    async def receive(self, ws: websockets.WebSocketClientProtocol) -> None:
+    async def receive(self, ws: websockets.ClientConnection) -> None:
         """Read messages from ``ws`` until it closes, queueing normalized trades."""
         self.logger.info(LogEvent.WS_CONNECTED, symbols=self.symbols)
         async for message in ws:

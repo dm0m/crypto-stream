@@ -144,7 +144,7 @@ async def test_receive_normalizes_and_queues_valid_messages(
 ) -> None:
     """Feed receive a fake async-iterable of raw JSON strings; valid ones land in the queue."""
     fake_ws = _FakeWebSocket(messages=[_raw_trade_message(trade_id=1)])
-    await ingestion_service.receive(cast(websockets.WebSocketClientProtocol, fake_ws))
+    await ingestion_service.receive(cast(websockets.ClientConnection, fake_ws))
     assert ingestion_service.queue.qsize() == 1
     assert ingestion_service.received == 1
     trade = ingestion_service.queue.get_nowait()
@@ -158,7 +158,7 @@ async def test_receive_skips_malformed_messages_without_queuing(
     """A message BinanceNormalizer.normalize() rejects (returns None) must not be queued."""
     ack_message = json.dumps({"result": None, "id": 1})
     fake_ws = _FakeWebSocket(messages=[ack_message])
-    await ingestion_service.receive(cast(websockets.WebSocketClientProtocol, fake_ws))
+    await ingestion_service.receive(cast(websockets.ClientConnection, fake_ws))
     assert ingestion_service.queue.qsize() == 0
     assert ingestion_service.received == 0
 
@@ -310,7 +310,7 @@ async def test_receive_blocks_on_full_queue_until_drained(
     )
     fake_ws = _FakeWebSocket(messages=[_raw_trade_message(i) for i in (1, 2, 3)])
     receive_task = asyncio.create_task(
-        service.receive(cast(websockets.WebSocketClientProtocol, fake_ws))
+        service.receive(cast(websockets.ClientConnection, fake_ws))
     )
     await asyncio.sleep(0)
 
@@ -377,7 +377,7 @@ async def test_receive_skips_invalid_json_and_keeps_reading(
     fake_ws = _FakeWebSocket(
         messages=["<html>502 Bad Gateway</html>", _raw_trade_message(trade_id=7)]
     )
-    await ingestion_service.receive(cast(websockets.WebSocketClientProtocol, fake_ws))
+    await ingestion_service.receive(cast(websockets.ClientConnection, fake_ws))
 
     assert ingestion_service.received == 1
     assert ingestion_service.queue.get_nowait().trade_id == "7"
