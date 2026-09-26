@@ -30,7 +30,7 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
 def postgres_container() -> Generator[PostgresContainer, None, None]:
     with PostgresContainer(
         "timescale/timescaledb:latest-pg17", driver="asyncpg"
-    ) as container:
+    ).with_command("postgres -c timescaledb.max_background_workers=0") as container:
         yield container
 
 
