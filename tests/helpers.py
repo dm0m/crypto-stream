@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from domain.enums import Exchange, Side
 from domain.trade import Trade
-from processing.worker import StreamEntry
+from processing.worker import StreamEntry, TradeWorker
 
 
 def make_trade() -> Trade:
@@ -57,3 +57,17 @@ async def set_shutdown_event_when_drained(
             await asyncio.sleep(poll_interval)
     finally:
         event.set()
+
+
+async def run_workers_until_drained(
+    event: asyncio.Event, expected: int, *workers: TradeWorker
+) -> None:
+    """Run ``workers`` until together they have processed ``expected`` entries."""
+
+    def is_drained() -> bool:
+        return sum(worker.processed_count for worker in workers) >= expected
+
+    await asyncio.gather(
+        set_shutdown_event_when_drained(event, is_drained),
+        *(worker.run() for worker in workers),
+    )

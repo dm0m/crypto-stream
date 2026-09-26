@@ -10,8 +10,8 @@ from storage.repositories import TradeRepository
 from tests.helpers import (
     make_trade,
     make_trades,
+    run_workers_until_drained,
     set_shutdown_event_after_delay,
-    set_shutdown_event_when_drained,
 )
 
 
@@ -129,16 +129,7 @@ async def test_two_workers_in_same_group_split_the_stream(
         pipe.xadd(worker_1.STREAM, {"data": trade.model_dump_json()})
     await pipe.execute()
 
-    # concurrently run both workers, sleep and shutdown
-    def is_drained() -> bool:
-        return worker_1.processed_count + worker_2.processed_count >= NO_OF_TRADES
-
-    set_shutdown_event_task = asyncio.create_task(
-        set_shutdown_event_when_drained(event, is_drained)
-    )
-    worker_1_run_task = asyncio.create_task(worker_1.run())
-    worker_2_run_task = asyncio.create_task(worker_2.run())
-    await asyncio.gather(set_shutdown_event_task, worker_1_run_task, worker_2_run_task)
+    await run_workers_until_drained(event, NO_OF_TRADES, worker_1, worker_2)
 
     # assert both consumers have 0 pending
     consumer_info = await integration_redis_client.xinfo_consumers(

@@ -12,7 +12,7 @@ from domain.enums import Exchange
 from ingestion.service import IngestionService
 from processing.worker import StreamEntry, TradeWorker
 from storage.repositories import TradeRepository
-from tests.helpers import make_trades, set_shutdown_event_when_drained
+from tests.helpers import make_trades, run_workers_until_drained
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -36,13 +36,7 @@ async def test_ingestion_flush_is_consumed_by_worker(
     await worker.ensure_group()
     await service.flush_batch(trades)
 
-    def is_drained() -> bool:
-        return worker.processed_count >= len(trades)
-
-    set_shutdown_event_task = asyncio.create_task(
-        set_shutdown_event_when_drained(event, is_drained)
-    )
-    await asyncio.gather(set_shutdown_event_task, worker.run())
+    await run_workers_until_drained(event, len(trades), worker)
 
     assert worker.processed_count == len(trades)
     assert await integration_trade_repository.get_count(Exchange.BINANCE) == len(trades)

@@ -18,7 +18,7 @@ from processing.aggregator import CandleAggregator
 from processing.worker import TradeWorker
 from storage.models import CandleTable
 from storage.repositories import CandleRepository, TradeRepository
-from tests.helpers import set_shutdown_event_when_drained
+from tests.helpers import run_workers_until_drained
 
 T0 = datetime(2026, 9, 15, 12, 0, tzinfo=UTC)
 
@@ -69,13 +69,7 @@ async def test_worker_writes_closed_candle_matching_hand_computed_ohlcv(
     await worker.ensure_group()
     await service.flush_batch(trades)
 
-    def is_drained() -> bool:
-        return worker.processed_count >= len(trades)
-
-    await asyncio.gather(
-        asyncio.create_task(set_shutdown_event_when_drained(event, is_drained)),
-        worker.run(),
-    )
+    await run_workers_until_drained(event, len(trades), worker)
 
     assert await integration_trade_repository.get_count(Exchange.BINANCE) == 4
     assert (
@@ -194,13 +188,7 @@ async def test_continuous_aggregate_agrees_with_worker_candles(
     await worker.ensure_group()
     await service.flush_batch(trades)
 
-    def is_drained() -> bool:
-        return worker.processed_count >= len(trades)
-
-    await asyncio.gather(
-        asyncio.create_task(set_shutdown_event_when_drained(event, is_drained)),
-        worker.run(),
-    )
+    await run_workers_until_drained(event, len(trades), worker)
 
     async with integration_engine.connect() as conn:
         autocommit = await conn.execution_options(isolation_level="AUTOCOMMIT")
