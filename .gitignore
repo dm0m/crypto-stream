@@ -48,3 +48,8 @@ Thumbs.db
 # Local planning notes
 .STEP4_TODO.txt
 .NOTES_INDEXES.txt
+
+#sql playground
+/storage/.playground.pgsql
+# Step 5 planning notes
+.STEP5_TODO.txt
