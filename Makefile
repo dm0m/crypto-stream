@@ -34,3 +34,7 @@ test-all: test test-integration  ## Unit then integration
 
 run:  ## Start compose, migrate, run both services
 	./launch.sh
+
+run-api:  ## API with reload, host and port from .env
+	set -a; . ./.env; set +a; $(PYTHON) -m fastapi dev --host $$API_HOST --port $$API_PORT
+ 

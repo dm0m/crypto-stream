@@ -22,3 +22,8 @@ class LogEvent(StrEnum):
     DB_RECONNECTING = "psql.reconnecting"
     AGGREGATOR_CANDLE_CLOSED = "aggregator.candle_closed"
     AGGREGATOR_LATE_TRADE = "aggregator.late_trade"
+    CACHE_HIT = "cache.hit"
+    CACHE_MISS = "cache.miss"
+    CACHE_UNAVAILABLE = "cache.unavailable"
+    CACHE_RECOVERED = "cache.recovered"
+    HEALTH_CHECK_FAILED = "health.check_failed"
