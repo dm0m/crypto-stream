@@ -7,12 +7,12 @@ from datetime import timedelta
 
 import structlog
 
-from core.config import get_settings
 from core.log_events import LogEvent
 from core.logging import configure_logging
 from core.redis_client import check_redis_con, redis_client
 from domain.enums import Interval
 from processing.aggregator import CandleAggregator
+from processing.settings import get_worker_settings
 from processing.worker import TradeWorker
 from storage.engine import check_db_conn, engine, session_factory
 from storage.repositories import CandleRepository, TradeRepository
@@ -25,7 +25,7 @@ async def main() -> None:
     await check_redis_con()
     await check_db_conn()
     logger.info(LogEvent.REDIS_CONNECTED)
-    settings = get_settings()
+    settings = get_worker_settings()
     shutdown_event = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):

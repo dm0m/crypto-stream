@@ -1,34 +1,52 @@
-"""Process configuration loaded from environment variables (12-factor style)."""
+"""Configuration shared by more than one service, read from the environment."""
 
 from functools import lru_cache
 
-from pydantic import Field, SecretStr
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class Settings(BaseSettings):
-    """Connection and naming settings for Postgres, Redis and the stream consumers."""
+class DatabaseSettings(BaseSettings):
+    """Connection details for Postgres, from ``DB_NAME``, ``DB_USER`` and so on."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_prefix="DB_", env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
 
-    db_name: str
-    db_user: str
-    db_password: SecretStr
-    db_host: str
-    db_port: int
-    redis_host: str
-    redis_port: int
-    redis_password: SecretStr
-    trade_worker_consumer: str
-    trade_recovery_consumer: str
-    candle_interval: str = "1m"
-    candle_grace_seconds: float = Field(default=2.0, ge=0)
+    name: str
+    user: str
+    password: SecretStr
+    host: str
+    port: int
 
     @property
-    def database_url(self) -> str:
-        return f"postgresql+asyncpg://{self.db_user}:{self.db_password.get_secret_value()}@{self.db_host}:{self.db_port}/{self.db_name}"
+    def url(self) -> str:
+        return (
+            f"postgresql+asyncpg://{self.user}:{self.password.get_secret_value()}"
+            f"@{self.host}:{self.port}/{self.name}"
+        )
+
+
+class RedisSettings(BaseSettings):
+    """Connection details for Redis, from ``REDIS_HOST``, ``REDIS_PORT`` and so on."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="REDIS_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    host: str
+    port: int
+    password: SecretStr
 
 
 @lru_cache
-def get_settings() -> Settings:
-    return Settings()  # pyright: ignore[reportCallIssue]
+def get_database_settings() -> DatabaseSettings:
+    return DatabaseSettings()  # pyright: ignore[reportCallIssue]
+
+
+@lru_cache
+def get_redis_settings() -> RedisSettings:
+    return RedisSettings()  # pyright: ignore[reportCallIssue]

@@ -6,18 +6,18 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from core.config import get_settings
+from core.config import get_database_settings
 from storage.models import Base
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 # Tests inject a throwaway container's URL through ``config.attributes``;
-# otherwise the URL comes from ``Settings`` so alembic.ini never holds
+# otherwise the URL comes from ``DatabaseSettings`` so alembic.ini never holds
 # credentials.
 config.set_main_option(
     "sqlalchemy.url",
-    config.attributes.get("sqlalchemy_url") or get_settings().database_url,
+    config.attributes.get("sqlalchemy_url") or get_database_settings().url,
 )
 
 # Interpret the config file for Python logging.
@@ -79,7 +79,7 @@ async def run_async_migrations() -> None:
 
     Uses ``NullPool`` since a migration run needs exactly one connection and
     the engine is disposed as soon as it finishes. The URL was injected into
-    the config from ``Settings`` at module import, so ``alembic.ini`` never
+    the config from ``DatabaseSettings`` at module import, so ``alembic.ini`` never
     has to hold credentials.
     """
 
