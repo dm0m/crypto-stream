@@ -199,7 +199,7 @@ async def test_continuous_aggregate_agrees_with_worker_candles(
             await autocommit.execute(
                 text(
                     "SELECT open, high, low, close, volume, trade_count "
-                    "FROM candles_1m WHERE bucket = :bucket"
+                    "FROM candles_1m WHERE ts_open = :bucket"
                 ),
                 {"bucket": T0},
             )
