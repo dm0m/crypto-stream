@@ -24,7 +24,7 @@ class TradeTable(Base):
     quantity: Mapped[Decimal] = mapped_column(Numeric)
     ts_ingest: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     side: Mapped[Side] = mapped_column(Enum(Side))
-    symbol: Mapped[str] = mapped_column(String(20), index=True)
+    symbol: Mapped[str] = mapped_column(String(20))
     __table_args__ = (Index("trades_ts_event_idx", ts_event.desc()),)
 
 
