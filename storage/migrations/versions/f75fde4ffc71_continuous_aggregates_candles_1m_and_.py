@@ -80,8 +80,12 @@ def upgrade() -> None:
     with op.get_context().autocommit_block():
         op.execute(CANDLES_1M)
         op.execute(CANDLES_1H)
-        op.execute("""ALTER MATERIALIZED VIEW candles_1h SET (timescaledb.materialized_only = false);""")
-        op.execute("""ALTER MATERIALIZED VIEW candles_1m SET (timescaledb.materialized_only = false);""")
+        op.execute(
+            """ALTER MATERIALIZED VIEW candles_1h SET (timescaledb.materialized_only = false);"""
+        )
+        op.execute(
+            """ALTER MATERIALIZED VIEW candles_1m SET (timescaledb.materialized_only = false);"""
+        )
         for view, start, end, every in POLICIES:
             op.execute(
                 f"SELECT add_continuous_aggregate_policy('{view}', "
